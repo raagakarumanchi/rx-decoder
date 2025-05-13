@@ -1,312 +1,166 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { ABBREVIATIONS } from '@/lib/abbreviations';
-import { getSearchHistory, addToHistory, clearHistory, type SearchHistory } from '@/lib/history';
+import { search, getSuggestions, SearchResult } from '@/lib/search';
+import SearchResults from '@/components/SearchResults';
+import SearchStats from '@/components/SearchStats';
 
-const COMMON_EXAMPLES = [
-  { input: 'ipo', meaning: 'take 1 tablet by mouth' },
-  { input: 'pobid', meaning: 'take by mouth twice daily' },
-  { input: 'iiprn', meaning: 'take 1 tablet as needed' },
-];
-
-export default function HomePage() {
-  const [query, setQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
-  const [suggestions, setSuggestions] = useState<typeof ABBREVIATIONS>([]);
-  const [history, setHistory] = useState<SearchHistory[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
+export default function Home() {
   const router = useRouter();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Load history
-  useEffect(() => {
-    setHistory(getSearchHistory());
-  }, []);
-
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + K to focus search
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-      // Escape to close modals
-      if (e.key === 'Escape') {
-        setShowHelp(false);
-        setShowHistory(false);
-      }
-      // ? to toggle help
-      if (e.key === '?') {
-        setShowHelp(prev => !prev);
-      }
-      // Ctrl/Cmd + H to toggle history
-      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
-        e.preventDefault();
-        setShowHistory(prev => !prev);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, []);
-
-  // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setSelectedIndex(prev => 
-          prev < suggestions.length - 1 ? prev + 1 : prev
-        );
-      } else if (e.key === 'ArrowUp') {
+        const input = document.querySelector('input');
+        input?.focus();
+      } else if (e.key === 'Escape') {
+        setShowHelp(false);
+        setShowSuggestions(false);
+      } else if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
-        setSelectedIndex(prev => prev > -1 ? prev - 1 : -1);
-      } else if (e.key === 'Enter' && selectedIndex > -1) {
-        e.preventDefault();
-        const selected = suggestions[selectedIndex];
-        setQuery(selected.abbreviation);
-        router.push(`/decode/${selected.abbreviation}`);
+        setShowHelp((prev) => !prev);
       }
     };
 
-    const input = inputRef.current;
-    input?.addEventListener('keydown', handleKeyDown);
-    return () => input?.removeEventListener('keydown', handleKeyDown);
-  }, [suggestions, selectedIndex, router]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
-  // Update suggestions as user types
   useEffect(() => {
-    if (query.trim()) {
-      const matches = ABBREVIATIONS.filter(abbr => 
-        abbr.abbreviation.toLowerCase().includes(query.toLowerCase()) ||
-        abbr.meaning.toLowerCase().includes(query.toLowerCase())
-      ).slice(0, 5);
-      setSuggestions(matches);
-      setSelectedIndex(-1);
-    } else {
+    if (!query.trim()) {
+      setResults([]);
       setSuggestions([]);
+      return;
     }
+
+    const debounceTimer = setTimeout(() => {
+      setIsLoading(true);
+      const searchResults = search(query);
+      setResults(searchResults);
+      setSuggestions(getSuggestions(query));
+      setIsLoading(false);
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
   }, [query]);
 
-  const submit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
-    
-    setIsLoading(true);
-    try {
-      const trimmedQuery = query.trim().toLowerCase();
-      // Split combined abbreviations (e.g., "ipo" -> "i po")
-      const parts = trimmedQuery
-        .match(/([ivxlcdm]+|[a-z]+)/g)   // split roman-numerals vs letters
-        ?.join(' ');
-      
-      if (parts) {
-        addToHistory(parts);
-        setHistory(getSearchHistory());
-        await router.push(`/decode/${encodeURIComponent(parts)}`);
-      }
-    } finally {
-      setIsLoading(false);
+    if (query.trim()) {
+      router.push(`/decode/${query.trim()}`);
     }
   };
 
-  const formatTimestamp = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+  const handleSelect = (result: SearchResult) => {
+    setQuery(result.abbreviation);
+    setShowSuggestions(false);
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-slate-900 to-slate-800">
-      <div className="max-w-2xl w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-emerald-400 to-emerald-600 bg-clip-text text-transparent">
-            rx0decoder
-          </h1>
-          <p className="text-xl text-slate-300 mb-8">
-            Translate prescription abbreviations into plain English
-          </p>
-        </div>
+    <main className="container mx-auto px-4 py-8">
+      <div className="max-w-3xl mx-auto">
+        <h1 className="text-4xl font-bold text-center text-gray-900 mb-8">
+          Prescription Abbreviation Decoder
+        </h1>
 
-        <form onSubmit={submit} className="w-full max-w-sm mx-auto" role="search">
+        <form onSubmit={handleSubmit} className="relative">
           <div className="relative">
             <input
-              ref={inputRef}
+              type="text"
               value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Type any prescription code (e.g., ipo, pobid)"
-              className="w-full p-4 rounded-lg bg-slate-800/50 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-              aria-label="Enter prescription abbreviation"
-              disabled={isLoading}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setShowSuggestions(true)}
+              placeholder="Enter prescription abbreviation (⌘K to focus)"
+              className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2">
-              <kbd className="px-2 py-1 text-xs bg-slate-700 rounded text-slate-300">⌘K</kbd>
-              <button
-                type="button"
-                onClick={() => setShowHistory(prev => !prev)}
-                className="text-slate-400 hover:text-slate-300 transition-colors"
-                aria-label="View search history"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                </svg>
-              </button>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+              Press ? for help
             </div>
           </div>
 
-          {suggestions.length > 0 && (
-            <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden">
-              {suggestions.map((suggestion, index) => (
-                <button
-                  key={suggestion.abbreviation}
-                  onClick={() => {
-                    setQuery(suggestion.abbreviation);
-                    router.push(`/decode/${suggestion.abbreviation}`);
-                  }}
-                  className={`w-full p-3 text-left hover:bg-slate-700/50 transition-colors ${
-                    index === selectedIndex ? 'bg-slate-700/50' : ''
-                  }`}
-                >
-                  <div className="font-mono text-emerald-400">{suggestion.abbreviation}</div>
-                  <div className="text-sm text-slate-300">{suggestion.meaning}</div>
-                </button>
-              ))}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-10 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200">
+              <div className="p-2">
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Suggestions</h3>
+                <SearchResults
+                  results={suggestions}
+                  query={query}
+                  onSelect={handleSelect}
+                  maxResults={5}
+                />
+              </div>
             </div>
           )}
-
-          <button 
-            className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 px-4 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-            disabled={isLoading}
-            aria-label="Decode abbreviation"
-          >
-            {isLoading ? 'decoding...' : 'decode'}
-          </button>
-
-          <div className="mt-6 space-y-4">
-            <div className="text-center text-sm text-slate-400">
-              <p className="mb-2">Common examples:</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {COMMON_EXAMPLES.map((example) => (
-                  <button
-                    key={example.input}
-                    onClick={() => {
-                      setQuery(example.input);
-                      router.push(`/decode/${example.input}`);
-                    }}
-                    className="p-2 rounded bg-slate-800/50 border border-slate-700 hover:bg-slate-700/50 transition-colors"
-                  >
-                    <div className="font-mono text-emerald-400">{example.input}</div>
-                    <div className="text-xs text-slate-400">{example.meaning}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
         </form>
 
-        <div className="flex justify-center space-x-4 text-sm">
-          <Link href="/list" className="text-emerald-400 hover:text-emerald-300 transition-colors">
-            browse all abbreviations
-          </Link>
-          <Link href="/references" className="text-emerald-400 hover:text-emerald-300 transition-colors">
-            view references
-          </Link>
-          <button 
-            onClick={() => setShowHelp(true)}
-            className="text-emerald-400 hover:text-emerald-300 transition-colors"
-          >
-            keyboard shortcuts
-          </button>
-        </div>
-      </div>
-
-      {/* Help Modal */}
-      {showHelp && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-800/95 rounded-lg p-6 max-w-md w-full border border-slate-700">
-            <h2 className="text-xl font-bold mb-4 text-emerald-400">Keyboard Shortcuts</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">Focus search</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">⌘K</kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">Toggle help</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">?</kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">Toggle history</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">⌘H</kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">Close modals</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">Esc</kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">Navigate suggestions</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">↑↓</kbd>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowHelp(false)}
-              className="mt-6 w-full bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded transition-colors text-slate-300"
-            >
-              Close
-            </button>
+        {isLoading ? (
+          <div className="mt-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
+            <p className="mt-2 text-gray-500">Searching...</p>
           </div>
-        </div>
-      )}
+        ) : results.length > 0 ? (
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Search Results</h2>
+            <SearchResults
+              results={results}
+              query={query}
+              showScore
+              showMatchType
+            />
+          </div>
+        ) : query.trim() ? (
+          <div className="mt-8 text-center text-gray-500">
+            No results found for "{query}"
+          </div>
+        ) : null}
 
-      {/* History Modal */}
-      {showHistory && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-800/95 rounded-lg p-6 max-w-md w-full border border-slate-700">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-emerald-400">Search History</h2>
+        <SearchStats />
+
+        {showHelp && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Keyboard Shortcuts</h2>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">⌘K or Ctrl+K</span>
+                  <span className="text-gray-900">Focus search input</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">?</span>
+                  <span className="text-gray-900">Toggle help modal</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Esc</span>
+                  <span className="text-gray-900">Close modal or suggestions</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">↑/↓</span>
+                  <span className="text-gray-900">Navigate suggestions</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Enter</span>
+                  <span className="text-gray-900">Select suggestion</span>
+                </div>
+              </div>
               <button
-                onClick={clearHistory}
-                className="text-sm text-red-400 hover:text-red-300 transition-colors"
+                onClick={() => setShowHelp(false)}
+                className="mt-6 w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
               >
-                Clear history
+                Close
               </button>
             </div>
-            {history.length > 0 ? (
-              <div className="space-y-2">
-                {history.map((item) => (
-                  <button
-                    key={item.timestamp}
-                    onClick={() => {
-                      setQuery(item.query);
-                      setShowHistory(false);
-                      router.push(`/decode/${item.query}`);
-                    }}
-                    className="w-full p-3 text-left hover:bg-slate-700/50 rounded transition-colors border border-slate-700"
-                  >
-                    <div className="font-mono text-emerald-400">{item.query}</div>
-                    <div className="text-sm text-slate-400">
-                      {formatTimestamp(item.timestamp)}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-slate-400 text-center py-4">
-                No search history yet
-              </p>
-            )}
-            <button
-              onClick={() => setShowHistory(false)}
-              className="mt-6 w-full bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded transition-colors text-slate-300"
-            >
-              Close
-            </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </main>
   );
 }
