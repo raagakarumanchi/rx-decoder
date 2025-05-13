@@ -5,6 +5,12 @@ import Link from 'next/link';
 import { ABBREVIATIONS } from '@/lib/abbreviations';
 import { getSearchHistory, addToHistory, clearHistory, type SearchHistory } from '@/lib/history';
 
+const COMMON_EXAMPLES = [
+  { input: 'ipo', meaning: 'take 1 tablet by mouth' },
+  { input: 'pobid', meaning: 'take by mouth twice daily' },
+  { input: 'iiprn', meaning: 'take 1 tablet as needed' },
+];
+
 export default function HomePage() {
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -115,11 +121,13 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6">
+    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-slate-900 to-slate-800">
       <div className="max-w-2xl w-full space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">rx0decoder</h1>
-          <p className="text-slate-300 mb-8">
+          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-emerald-400 to-emerald-600 bg-clip-text text-transparent">
+            rx0decoder
+          </h1>
+          <p className="text-xl text-slate-300 mb-8">
             Translate prescription abbreviations into plain English
           </p>
         </div>
@@ -130,17 +138,17 @@ export default function HomePage() {
               ref={inputRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="e.g. po bid prn (Press ⌘K to focus)"
-              className="w-full p-3 rounded-lg bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              placeholder="Type any prescription code (e.g., ipo, pobid)"
+              className="w-full p-4 rounded-lg bg-slate-800/50 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
               aria-label="Enter prescription abbreviation"
               disabled={isLoading}
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2">
-              <kbd className="text-xs text-slate-400">⌘K</kbd>
+              <kbd className="px-2 py-1 text-xs bg-slate-700 rounded text-slate-300">⌘K</kbd>
               <button
                 type="button"
                 onClick={() => setShowHistory(prev => !prev)}
-                className="text-slate-400 hover:text-slate-300"
+                className="text-slate-400 hover:text-slate-300 transition-colors"
                 aria-label="View search history"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -151,7 +159,7 @@ export default function HomePage() {
           </div>
 
           {suggestions.length > 0 && (
-            <div className="mt-2 bg-slate-800 rounded-lg overflow-hidden">
+            <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden">
               {suggestions.map((suggestion, index) => (
                 <button
                   key={suggestion.abbreviation}
@@ -159,11 +167,11 @@ export default function HomePage() {
                     setQuery(suggestion.abbreviation);
                     router.push(`/decode/${suggestion.abbreviation}`);
                   }}
-                  className={`w-full p-3 text-left hover:bg-slate-700 transition-colors ${
-                    index === selectedIndex ? 'bg-slate-700' : ''
+                  className={`w-full p-3 text-left hover:bg-slate-700/50 transition-colors ${
+                    index === selectedIndex ? 'bg-slate-700/50' : ''
                   }`}
                 >
-                  <div className="font-mono">{suggestion.abbreviation}</div>
+                  <div className="font-mono text-emerald-400">{suggestion.abbreviation}</div>
                   <div className="text-sm text-slate-300">{suggestion.meaning}</div>
                 </button>
               ))}
@@ -171,27 +179,45 @@ export default function HomePage() {
           )}
 
           <button 
-            className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 px-4 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 px-4 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             disabled={isLoading}
             aria-label="Decode abbreviation"
           >
             {isLoading ? 'decoding...' : 'decode'}
           </button>
-          <p className="mt-4 text-sm text-slate-400 text-center">
-            Tip: use a space between parts (<code className="font-mono">i po prn</code>)
-          </p>
+
+          <div className="mt-6 space-y-4">
+            <div className="text-center text-sm text-slate-400">
+              <p className="mb-2">Common examples:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {COMMON_EXAMPLES.map((example) => (
+                  <button
+                    key={example.input}
+                    onClick={() => {
+                      setQuery(example.input);
+                      router.push(`/decode/${example.input}`);
+                    }}
+                    className="p-2 rounded bg-slate-800/50 border border-slate-700 hover:bg-slate-700/50 transition-colors"
+                  >
+                    <div className="font-mono text-emerald-400">{example.input}</div>
+                    <div className="text-xs text-slate-400">{example.meaning}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </form>
 
-        <div className="flex justify-center space-x-4 text-sm text-emerald-400">
-          <Link href="/list" className="hover:underline">
+        <div className="flex justify-center space-x-4 text-sm">
+          <Link href="/list" className="text-emerald-400 hover:text-emerald-300 transition-colors">
             browse all abbreviations
           </Link>
-          <Link href="/references" className="hover:underline">
+          <Link href="/references" className="text-emerald-400 hover:text-emerald-300 transition-colors">
             view references
           </Link>
           <button 
             onClick={() => setShowHelp(true)}
-            className="hover:underline"
+            className="text-emerald-400 hover:text-emerald-300 transition-colors"
           >
             keyboard shortcuts
           </button>
@@ -200,34 +226,34 @@ export default function HomePage() {
 
       {/* Help Modal */}
       {showHelp && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Keyboard Shortcuts</h2>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span>Focus search</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded">⌘K</kbd>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-800/95 rounded-lg p-6 max-w-md w-full border border-slate-700">
+            <h2 className="text-xl font-bold mb-4 text-emerald-400">Keyboard Shortcuts</h2>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300">Focus search</span>
+                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">⌘K</kbd>
               </div>
-              <div className="flex justify-between">
-                <span>Toggle help</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded">?</kbd>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300">Toggle help</span>
+                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">?</kbd>
               </div>
-              <div className="flex justify-between">
-                <span>Toggle history</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded">⌘H</kbd>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300">Toggle history</span>
+                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">⌘H</kbd>
               </div>
-              <div className="flex justify-between">
-                <span>Close modals</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded">Esc</kbd>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300">Close modals</span>
+                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">Esc</kbd>
               </div>
-              <div className="flex justify-between">
-                <span>Navigate suggestions</span>
-                <kbd className="px-2 py-1 bg-slate-700 rounded">↑↓</kbd>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300">Navigate suggestions</span>
+                <kbd className="px-2 py-1 bg-slate-700 rounded text-slate-300">↑↓</kbd>
               </div>
             </div>
             <button
               onClick={() => setShowHelp(false)}
-              className="mt-6 w-full bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded transition-colors"
+              className="mt-6 w-full bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded transition-colors text-slate-300"
             >
               Close
             </button>
@@ -237,13 +263,13 @@ export default function HomePage() {
 
       {/* History Modal */}
       {showHistory && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-lg p-6 max-w-md w-full">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-800/95 rounded-lg p-6 max-w-md w-full border border-slate-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Search History</h2>
+              <h2 className="text-xl font-bold text-emerald-400">Search History</h2>
               <button
                 onClick={clearHistory}
-                className="text-sm text-red-400 hover:text-red-300"
+                className="text-sm text-red-400 hover:text-red-300 transition-colors"
               >
                 Clear history
               </button>
@@ -258,9 +284,9 @@ export default function HomePage() {
                       setShowHistory(false);
                       router.push(`/decode/${item.query}`);
                     }}
-                    className="w-full p-3 text-left hover:bg-slate-700 rounded transition-colors"
+                    className="w-full p-3 text-left hover:bg-slate-700/50 rounded transition-colors border border-slate-700"
                   >
-                    <div className="font-mono">{item.query}</div>
+                    <div className="font-mono text-emerald-400">{item.query}</div>
                     <div className="text-sm text-slate-400">
                       {formatTimestamp(item.timestamp)}
                     </div>
@@ -274,7 +300,7 @@ export default function HomePage() {
             )}
             <button
               onClick={() => setShowHistory(false)}
-              className="mt-6 w-full bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded transition-colors"
+              className="mt-6 w-full bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded transition-colors text-slate-300"
             >
               Close
             </button>
