@@ -7,7 +7,7 @@ import { addToHistory } from '@/lib/history';
 export default function DecodePage({ params }: { params: { code: string } }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [abbreviation, setAbbreviation] = useState<typeof ABBREVIATIONS[0] | null>(null);
+  const [abbreviations, setAbbreviations] = useState<typeof ABBREVIATIONS>([]);
   const [relatedAbbreviations, setRelatedAbbreviations] = useState<typeof ABBREVIATIONS>([]);
 
   useEffect(() => {
@@ -17,16 +17,21 @@ export default function DecodePage({ params }: { params: { code: string } }) {
       
       try {
         const decodedCode = decodeURIComponent(params.code);
-        const found = ABBREVIATIONS.find(
-          abbr => abbr.abbreviation.toLowerCase() === decodedCode.toLowerCase()
-        );
+        // Split the code into parts and find matches for each
+        const parts = decodedCode.toLowerCase().split(/\s+/);
+        const matches = parts.map(part => 
+          ABBREVIATIONS.find(abbr => abbr.abbreviation.toLowerCase() === part)
+        ).filter((match): match is typeof ABBREVIATIONS[0] => match !== undefined);
 
-        if (found) {
-          setAbbreviation(found);
-          // Find related abbreviations (those that share words in their meaning)
-          const words = found.meaning.toLowerCase().split(/\s+/);
+        if (matches.length > 0) {
+          setAbbreviations(matches);
+          
+          // Find related abbreviations based on all matches
+          const words = matches.flatMap(match => 
+            match.meaning.toLowerCase().split(/\s+/)
+          );
           const related = ABBREVIATIONS.filter(abbr => 
-            abbr.abbreviation !== found.abbreviation &&
+            !matches.some(match => match.abbreviation === abbr.abbreviation) &&
             words.some(word => 
               word.length > 3 && // Only consider words longer than 3 characters
               abbr.meaning.toLowerCase().includes(word)
@@ -35,7 +40,7 @@ export default function DecodePage({ params }: { params: { code: string } }) {
           setRelatedAbbreviations(related);
           
           // Add to history
-          addToHistory(found.abbreviation);
+          addToHistory(decodedCode);
         } else {
           setError('Abbreviation not found');
         }
@@ -60,7 +65,7 @@ export default function DecodePage({ params }: { params: { code: string } }) {
     );
   }
 
-  if (error || !abbreviation) {
+  if (error || abbreviations.length === 0) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center p-6">
         <div className="max-w-2xl w-full text-center space-y-8">
@@ -115,8 +120,15 @@ export default function DecodePage({ params }: { params: { code: string } }) {
     <main className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="max-w-2xl w-full space-y-8">
         <div className="text-center">
-          <h1 className="text-4xl font-bold mb-2 font-mono">{abbreviation.abbreviation}</h1>
-          <p className="text-2xl text-slate-300">{abbreviation.meaning}</p>
+          <h1 className="text-4xl font-bold mb-2 font-mono">{params.code}</h1>
+          <div className="space-y-4">
+            {abbreviations.map((abbr, index) => (
+              <div key={abbr.abbreviation} className="p-4 bg-slate-800 rounded-lg">
+                <div className="font-mono text-lg text-emerald-400">{abbr.abbreviation}</div>
+                <div className="text-xl text-slate-300">{abbr.meaning}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {relatedAbbreviations.length > 0 && (

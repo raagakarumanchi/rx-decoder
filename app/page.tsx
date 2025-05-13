@@ -94,9 +94,16 @@ export default function HomePage() {
     setIsLoading(true);
     try {
       const trimmedQuery = query.trim().toLowerCase();
-      addToHistory(trimmedQuery);
-      setHistory(getSearchHistory());
-      await router.push(`/decode/${encodeURIComponent(trimmedQuery)}`);
+      // Split combined abbreviations (e.g., "ipo" -> "i po")
+      const parts = trimmedQuery
+        .match(/([ivxlcdm]+|[a-z]+)/g)   // split roman-numerals vs letters
+        ?.join(' ');
+      
+      if (parts) {
+        addToHistory(parts);
+        setHistory(getSearchHistory());
+        await router.push(`/decode/${encodeURIComponent(parts)}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -170,6 +177,9 @@ export default function HomePage() {
           >
             {isLoading ? 'decoding...' : 'decode'}
           </button>
+          <p className="mt-4 text-sm text-slate-400 text-center">
+            Tip: use a space between parts (<code className="font-mono">i po prn</code>)
+          </p>
         </form>
 
         <div className="flex justify-center space-x-4 text-sm text-emerald-400">
