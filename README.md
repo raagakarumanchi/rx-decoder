@@ -15,7 +15,6 @@ A tool for decoding prescription labels and medical abbreviations into plain Eng
 - Next.js 13 (App Router)
 - TypeScript
 - Tailwind CSS
-- Deployed on Vercel
 
 ## Getting Started
 
